@@ -4,27 +4,46 @@ import random
 from collections import namedtuple
 
 from . import proto
+from .compatibility import urlsplit
 from .utils import cached_property
 
 
 __all__ = ('ProxiedPage', 'WebUI')
 
 
-class ProxiedPage(namedtuple('ProxiedPage', ['prefix', 'target', 'name'])):
+class ProxiedPage(object):
     """A page proxied by the Skein Web UI.
 
-    Parameters
+    Attributes
     ----------
     prefix : string
         The prefix used in the address to the proxied page.
+    name : string or None
+        The name of the linked page in the Web UI. If ``None``, the page is
+        still proxied but isn't linked to in the Web UI.
+    address : string
+        The full proxied address to this page.
     target : string
         The target address of the proxy.
-    name : string or None, optional
-        The name to link the page to in the Web UI. If no name is provided, the
-        page is still proxied but won't be linked to in the Web UI.
     """
-    def __new__(cls, prefix, target, name=None):
-        return super(ProxiedPage, cls).__new__(cls, prefix, target, name)
+    __slots__ = ('prefix', 'name', 'target', '_ui_address', '_proxy_prefix')
+
+    def __init__(self, prefix, name, target, ui_address, proxy_prefix):
+        self.prefix = prefix
+        self.target = target
+        self.name = name
+        self._ui_address = ui_address
+        self._proxy_prefix = proxy_prefix
+
+    def __repr__(self):
+        return 'ProxiedPage<prefix=%r>' % self.prefix
+
+    @property
+    def address(self):
+        """The full proxied address to this page"""
+        suffix = '' if urlsplit(self.target).path else '/'
+        return '%s%s/%s%s' % (self._ui_address[:-1], self._proxy_prefix,
+                              self.prefix, suffix)
 
 
 UIInfo = namedtuple('UIInfo', ['ui_addresses', 'proxy_prefix'])
@@ -53,9 +72,13 @@ class WebUI(object):
     def address(self):
         return random.choice(self._ui_info.ui_addresses)
 
+    def __repr__(self):
+        return "WebUI<address=%r>" % self.address
+
     def get_proxies(self):
         resp = self._client._call('GetProxies', proto.GetProxiesRequest())
-        return [ProxiedPage(i.prefix, i.target, i.name if i.name else None)
+        return [ProxiedPage(i.prefix, i.name if i.name else None, i.target,
+                            self.address, self.proxy_prefix)
                 for i in resp.proxy]
 
     def get_proxies_by_name(self):

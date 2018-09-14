@@ -116,7 +116,7 @@ public class WebUI {
               }
             }));
 
-      uiAddresses = Lists.newArrayList(
+      List<String> proxyURIBases = Lists.newArrayList(
           Lists.transform(proxies,
             new Function<String, String>() {
               public String apply(String proxy) {
@@ -125,7 +125,13 @@ public class WebUI {
             }));
       filter.setInitParameter(AmIpFilter.PROXY_HOSTS, proxyHosts);
       filter.setInitParameter(AmIpFilter.PROXY_URI_BASES,
-          Joiner.on(AmIpFilter.PROXY_URI_BASES_DELIMITER).join(uiAddresses));
+          Joiner.on(AmIpFilter.PROXY_URI_BASES_DELIMITER).join(proxyURIBases));
+
+      // The uiAddresses are the proxy bases with a trailing slash
+      uiAddresses = Lists.newArrayList();
+      for (String base : proxyURIBases) {
+        uiAddresses.add(base + "/");
+      }
     } else {
       uiAddresses = Lists.newArrayList();
     }
