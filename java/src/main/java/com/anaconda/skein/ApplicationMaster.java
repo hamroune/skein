@@ -1559,9 +1559,8 @@ public class ApplicationMaster {
     }
 
     @Override
-    public void proxyInfo(Msg.ProxyInfoRequest req,
-                          StreamObserver<Msg.ProxyInfoResponse> resp) {
-      ui.proxyInfo(req, resp);
+    public void uiInfo(Msg.UIInfoRequest req, StreamObserver<Msg.UIInfoResponse> resp) {
+      ui.uiInfo(req, resp);
     }
 
     @Override

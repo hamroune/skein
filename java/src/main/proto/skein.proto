@@ -201,7 +201,7 @@ service Master {
 
   rpc RemoveProxy (RemoveProxyRequest) returns (Empty);
 
-  rpc ProxyInfo (ProxyInfoRequest) returns (ProxyInfoResponse);
+  rpc UiInfo (UIInfoRequest) returns (UIInfoResponse);
 
   rpc GetProxies (GetProxiesRequest) returns (GetProxiesResponse);
 }
@@ -395,26 +395,18 @@ message Proxy {
 }
 
 
-message AddProxyResponse {
-  string proxy_prefix = 1;
-  repeated string proxy_host = 2;
-  repeated string proxy_uri_base = 3;
-}
-
-
 message RemoveProxyRequest {
   string prefix = 1;
 }
 
 
-message ProxyInfoRequest {
+message UIInfoRequest {
 }
 
 
-message ProxyInfoResponse {
-  string proxy_prefix = 1;
-  repeated string proxy_host = 2;
-  repeated string proxy_uri_base = 3;
+message UIInfoResponse {
+  repeated string ui_address = 1;
+  string proxy_prefix = 2;
 }
 
 

@@ -28,7 +28,9 @@ import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.resource.Resource;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -48,9 +50,8 @@ public class WebUI {
   protected final Map<String, String> nameToPrefix = new TreeMap<String, String>();
   private final Map<String, String> prefixToTarget = new HashMap<String, String>();
   private static final String PROXY_PREFIX = "/pages";
+  private final List<String> uiAddresses;
   private final Server server;
-  private final List<String> proxyHosts;
-  private final List<String> proxyURIBases;
   private final Lock writeLock;
   private final Lock readLock;
 
@@ -97,7 +98,7 @@ public class WebUI {
         "/kv");
     context.addServlet(
         new ServletHolder(new DynamicProxyServlet(prefixToTarget, readLock)),
-        PROXY_PREFIX);
+        PROXY_PREFIX + "/*");
 
     // Add the yarn proxy filter
     if (!testing) {
@@ -107,7 +108,7 @@ public class WebUI {
       final String proxyBase = System.getenv(
           ApplicationConstants.APPLICATION_WEB_PROXY_BASE_ENV);
 
-      proxyHosts = Lists.newArrayList(
+      String proxyHosts = Joiner.on(AmIpFilter.PROXY_HOSTS_DELIMITER).join(
           Lists.transform(proxies,
             new Function<String, String>() {
               public String apply(String proxy) {
@@ -115,20 +116,18 @@ public class WebUI {
               }
             }));
 
-      proxyURIBases = Lists.newArrayList(
+      uiAddresses = Lists.newArrayList(
           Lists.transform(proxies,
             new Function<String, String>() {
               public String apply(String proxy) {
                 return protocol + proxy + proxyBase;
               }
             }));
-      filter.setInitParameter(AmIpFilter.PROXY_HOSTS,
-          Joiner.on(AmIpFilter.PROXY_HOSTS_DELIMITER).join(proxyHosts));
+      filter.setInitParameter(AmIpFilter.PROXY_HOSTS, proxyHosts);
       filter.setInitParameter(AmIpFilter.PROXY_URI_BASES,
-          Joiner.on(AmIpFilter.PROXY_URI_BASES_DELIMITER).join(proxyURIBases));
+          Joiner.on(AmIpFilter.PROXY_URI_BASES_DELIMITER).join(uiAddresses));
     } else {
-      proxyHosts = Lists.newArrayList();
-      proxyURIBases = Lists.newArrayList();
+      uiAddresses = Lists.newArrayList();
     }
 
     // Issue a 302 redirect to services from homepage
@@ -174,6 +173,21 @@ public class WebUI {
       target.substring(0, target.length() - 1);
     }
 
+    URL targetURL;
+    try {
+      targetURL = new URL(target);
+    } catch (MalformedURLException exc) {
+      resp.onError(Status.INVALID_ARGUMENT
+          .withDescription("Target address '" + target + "' is an invalid URL:\n"
+                           + exc.getMessage())
+          .asRuntimeException());
+      return;
+    }
+
+    // If the target address has no path, the prefix needs a trailing slash to
+    // resolve relative links correctly.
+    String linkPrefix = targetURL.getPath().isEmpty() ? prefix + "/" : prefix;
+
     writeLock.lock();
     try {
       if (prefixToProxy.containsKey(prefix)) {
@@ -190,7 +204,7 @@ public class WebUI {
       }
       prefixToProxy.put(prefix, req);
       if (!name.isEmpty()) {
-        nameToPrefix.put(name, prefix);
+        nameToPrefix.put(name, linkPrefix);
       }
       prefixToTarget.put(prefix, target);
     } finally {
@@ -227,14 +241,13 @@ public class WebUI {
     resp.onCompleted();
   }
 
-  public void proxyInfo(Msg.ProxyInfoRequest req,
-                        StreamObserver<Msg.ProxyInfoResponse> resp) {
-    Msg.ProxyInfoResponse.Builder msg =
-        Msg.ProxyInfoResponse
+  public void uiInfo(Msg.UIInfoRequest req,
+                     StreamObserver<Msg.UIInfoResponse> resp) {
+    Msg.UIInfoResponse.Builder msg =
+        Msg.UIInfoResponse
            .newBuilder()
-           .setProxyPrefix(PROXY_PREFIX)
-           .addAllProxyHost(proxyHosts)
-           .addAllProxyUriBase(proxyURIBases);
+           .addAllUiAddress(uiAddresses)
+           .setProxyPrefix(PROXY_PREFIX);
 
     resp.onNext(msg.build());
     resp.onCompleted();

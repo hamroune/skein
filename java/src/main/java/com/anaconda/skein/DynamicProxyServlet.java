@@ -1,5 +1,7 @@
 package com.anaconda.skein;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.eclipse.jetty.proxy.ProxyServlet;
 
 import java.net.URI;
@@ -8,6 +10,7 @@ import java.util.concurrent.locks.Lock;
 import javax.servlet.http.HttpServletRequest;
 
 public class DynamicProxyServlet extends ProxyServlet {
+  private static final Logger LOG = LogManager.getLogger(WebUI.class);
 
   private final Map<String, String> mapping;
   private final Lock lock;
@@ -19,11 +22,12 @@ public class DynamicProxyServlet extends ProxyServlet {
 
   private String getPrefix(String path) {
     int index = path.indexOf("/", 1);
-    return (index == -1) ? path : path.substring(1, index);
+    return (index == -1) ? path.substring(1, path.length()) : path.substring(1, index);
   }
 
   public String rewriteTarget(HttpServletRequest request) {
     String path = request.getPathInfo();
+    LOG.info("path: " + path);
 
     // No path to dispatch on
     if (path == null) {
@@ -33,6 +37,8 @@ public class DynamicProxyServlet extends ProxyServlet {
     String prefix = getPrefix(path);
     String target;
 
+    LOG.info("prefix: " + prefix);
+
     lock.lock();
     try {
       target = mapping.get(prefix);
@@ -40,13 +46,15 @@ public class DynamicProxyServlet extends ProxyServlet {
       lock.unlock();
     }
 
+    LOG.info("target: " + target);
+
     if (target == null) {
       return null;
     }
 
     StringBuilder uri = new StringBuilder(target);
 
-    String rest = path.substring(prefix.length());
+    String rest = path.substring(1 + prefix.length());
     if (!rest.isEmpty()) {
       if (!rest.startsWith("/")) {
         uri.append("/");
@@ -69,6 +77,8 @@ public class DynamicProxyServlet extends ProxyServlet {
       return null;
     }
 
-    return rewrittenURI.toString();
+    String out = rewrittenURI.toString();
+    LOG.info("out: " + out);
+    return out;
   }
 }
